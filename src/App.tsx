@@ -16,6 +16,7 @@ import {
 } from "./learning";
 import DemoGuide from "./DemoGuide";
 import { isDemo, materialsKey, demoImport } from "./demo";
+import { haruStarterLabel, haruStarterWords } from "./haruStarter";
 import {
   blankWord,
   validateWord,
@@ -325,6 +326,24 @@ export default function App() {
       setError("教材の保存に失敗しました。保存領域を確認してください。");
     }
   };
+  const addHaruStarter = () => {
+    void run(async () => {
+      const starter = haruStarterWords();
+      const existing = new Set(
+        words.map((word) => word.french.trim().toLocaleLowerCase()),
+      );
+      const additions = starter.filter(
+        (word) => !existing.has(word.french.trim().toLocaleLowerCase()),
+      );
+      if (!additions.length) {
+        setNotice("はる用スターターはすでに入っています。");
+        return;
+      }
+      await db.words.bulkAdd(additions);
+      await refresh();
+      setNotice(`${additions.length}語を追加しました。まずは今日の復習から始めよう。`);
+    });
+  };
   return (
     <div className="app">
       <aside className="sidebar">
@@ -431,7 +450,7 @@ export default function App() {
                 </h2>
                 <p>
                   {!words.length
-                    ? "授業で出会った単語から始めましょう。"
+                    ? "はる用スターターなら、入力なしで始められます。"
                     : todayQueue.length
                       ? "声に出して答えるだけ。文字入力も使えます。"
                       : dueWords(words, now).length
@@ -468,6 +487,20 @@ export default function App() {
                 <span>語</span>
               </div>
             </section>
+            {!words.length && !isDemo && (
+              <section className="panel starter-panel" aria-label="はる用スターター">
+                <div>
+                  <span className="eyebrow">INPUT FREE</span>
+                  <h2>{haruStarterLabel}</h2>
+                  <p>
+                    入門Ⅰ・Ⅱの必須語彙、現在形、冠詞・否定・疑問を約70語。重複しない語だけ追加します。
+                  </p>
+                </div>
+                <button className="primary" onClick={addHaruStarter}>
+                  基礎語彙を追加する <span aria-hidden="true">→</span>
+                </button>
+              </section>
+            )}
             <div className="home-summary">
               <span>
                 単語帳 <strong>{words.length}</strong> 語
