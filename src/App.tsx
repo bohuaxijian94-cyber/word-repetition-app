@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { db } from "./db";
+import { db, seedDemo } from "./db";
+import DemoGuide from "./DemoGuide";
+import { isDemo, materialsKey, demoImport } from "./demo";
 import {
   blankWord,
   validateWord,
@@ -38,6 +40,7 @@ export default function App() {
     [loaded, setLoaded] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [demoBusy, setDemoBusy] = useState(false);
   const [draft, setDraft] = useState<Word>(blankWord),
     [editing, setEditing] = useState(false),
     [text, setText] = useState(""),
@@ -53,7 +56,7 @@ export default function App() {
     { name: string; unit: string; url: string }[]
   >(() => {
     try {
-      return JSON.parse(localStorage.getItem("materials") || "[]");
+      return JSON.parse(localStorage.getItem(materialsKey) || "[]");
     } catch {
       return [];
     }
@@ -63,7 +66,8 @@ export default function App() {
     [materialUrl, setMaterialUrl] = useState("");
   const refresh = async () => setWords(await db.words.toArray());
   useEffect(() => {
-    refresh()
+    seedDemo()
+      .then(refresh)
       .then(() => setLoaded(true))
       .catch(() =>
         setError(
@@ -171,7 +175,7 @@ export default function App() {
       },
     ];
     try {
-      localStorage.setItem("materials", JSON.stringify(next));
+      localStorage.setItem(materialsKey, JSON.stringify(next));
       setMaterials(next);
       setMaterialName("");
       setMaterialUnit("");
@@ -246,6 +250,49 @@ export default function App() {
           <div className="notice" role="status">
             {notice}
           </div>
+        )}
+        {(isDemo || page === "home") && (
+          <DemoGuide
+            busy={demoBusy || !loaded}
+            onWords={() => navigate("words")}
+            onReview={() => {
+              setFilter("");
+              setMode("ja-fr");
+              navigate("review");
+            }}
+            onImport={() => {
+              navigate("import");
+              setText(demoImport);
+              setPreview(null);
+            }}
+            onReset={() =>
+              void run(async () => {
+                if (!isDemo) return;
+                setDemoBusy(true);
+                try {
+                  await db.transaction("rw", db.words, db.reviews, async () => {
+                    await db.words.clear();
+                    await db.reviews.clear();
+                  });
+                  localStorage.removeItem(materialsKey);
+                  setMaterials([]);
+                  await seedDemo();
+                  await refresh();
+                  setFilter("");
+                  setMode("ja-fr");
+                  setReviewCount(0);
+                  setQuery("");
+                  setText("");
+                  setPreview(null);
+                  setEditing(false);
+                  navigate("home");
+                  setNotice("デモを最初の6語に戻しました。");
+                } finally {
+                  setDemoBusy(false);
+                }
+              })
+            }
+          />
         )}
         {page === "home" && (
           <>
