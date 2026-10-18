@@ -1160,3 +1160,44 @@ progress {
     flex-basis: 22%;
   }
 }
+.speech-input {
+  margin: 10px 0 16px;
+  text-align: left;
+}
+.speech-input small {
+  display: block;
+  font-size: 10px;
+  color: #78846b;
+  margin: 8px 0;
+  line-height: 1.8;
+}
+.speech-input p {
+  font-size: 12px;
+  color: #557045;
+}
+.spoken-answer {
+  justify-content: center;
+  margin: 18px auto 8px;
+}
+.review-card > .speech-input {
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.recall-score {
+  display: block;
+  font:
+    38px Georgia,
+    serif;
+  color: #294f3e;
+  margin: 16px 0;
+}
+.outcome-panel p {
+  margin-bottom: 8px;
+}
+.speech-input .secondary {
+  font-size: 12px;
+}
+.check-label {
+  flex-wrap: wrap;
+}

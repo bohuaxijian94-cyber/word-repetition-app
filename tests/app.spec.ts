@@ -370,3 +370,92 @@ test("exam scopes can be edited and filter several units, materials are editable
   await expect(page.getByText("教材B /")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
 });
+
+test("oral recall skips typing without requesting microphone and keeps noun gender required", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /フラッシュカード/ })
+    .click();
+  await page
+    .getByLabel("声に出して答えた（文字入力を省略）", { exact: true })
+    .check();
+  await expect(
+    page.getByRole("button", { name: "答えを確認する", exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel("le（男性名詞）").check();
+  await page
+    .getByRole("button", { name: "答えを確認する", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
+  await page.getByRole("button", { name: "思い出せた", exact: true }).click();
+  await expect(
+    page.getByLabel("声に出して答えた（文字入力を省略）", { exact: true }),
+  ).not.toBeChecked();
+  await page.locator("nav").getByRole("button", { name: /統計/ }).click();
+  await expect(
+    page.getByText("まだ記録がありません", { exact: true }),
+  ).toBeVisible();
+});
+
+test("speech input appends final French transcript, ignores late results and supports Japanese", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    `window.__recognitions=[];window.SpeechRecognition=class {start(){window.__recognitions.push(this);}stop(){this.onend?.();}abort(){this.onend?.();}};`,
+  );
+  await page.goto("/?demo=1");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /フラッシュカード/ })
+    .click();
+  await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
+  expect(await page.evaluate("window.__recognitions[0].lang")).toBe("fr-FR");
+  await page.evaluate(
+    "window.__recognitions[0].onresult({resultIndex:0,results:[{isFinal:true,0:{transcript:'chat'}}]})",
+  );
+  await expect(page.getByLabel("あなたの答え", { exact: true })).toHaveValue(
+    "chat",
+  );
+  await page.getByLabel("le（男性名詞）").check();
+  await page
+    .getByRole("button", { name: "答えを確認する", exact: true })
+    .click();
+  await page.evaluate(
+    "window.__recognitions[0].onresult({resultIndex:0,results:[{isFinal:true,0:{transcript:'late text'}}]})",
+  );
+  await expect(page.getByLabel("あなたの答え", { exact: true })).toHaveValue(
+    "chat",
+  );
+  await page.getByRole("button", { name: "思い出せた", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "出題形式", exact: true })
+    .selectOption("fr-ja");
+  await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
+  expect(await page.evaluate("window.__recognitions.at(-1).lang")).toBe(
+    "ja-JP",
+  );
+});
+
+test("denied speech input leaves keyboard and oral self-check available", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    `window.webkitSpeechRecognition=class{start(){this.onerror?.({error:'not-allowed'});this.onend?.();}abort(){this.onend?.();}stop(){this.onend?.();}};Object.defineProperty(window,'SpeechRecognition',{value:undefined});`,
+  );
+  await page.goto("/?demo=1");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /フラッシュカード/ })
+    .click();
+  await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
+  await expect(page.getByText(/マイクが許可されていません/)).toBeVisible();
+  await page.getByLabel("あなたの答え", { exact: true }).fill("chat");
+  await page.getByLabel("le（男性名詞）").check();
+  await page
+    .getByRole("button", { name: "答えを確認する", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
+});

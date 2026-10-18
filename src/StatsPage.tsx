@@ -1,6 +1,6 @@
 import type { Word } from "./domain";
 import type { Review } from "./db";
-import { dayKey, streak, type Practice } from "./learning";
+import { dayKey, streak, delayedRecall, type Practice } from "./learning";
 export default function StatsPage({
   words,
   reviews,
@@ -12,6 +12,7 @@ export default function StatsPage({
   practice: Practice[];
   listeningDays: string[];
 }) {
+  const recall = delayedRecall(reviews);
   const records = [...reviews, ...practice];
   const counts = new Map<string, number>();
   for (const r of records)
@@ -26,6 +27,22 @@ export default function StatsPage({
     <>
       <div className="eyebrow">MES PROGRÈS</div>
       <h1>少しずつ、積み重ねる。</h1>
+      <section className="panel outcome-panel">
+        <h2>1日以上あけて、思い出せた割合</h2>
+        <strong className="recall-score">
+          {recall.percent === null
+            ? "まだ記録がありません"
+            : recall.percent + "%"}
+        </strong>
+        <p>
+          {recall.total
+            ? `${recall.total}回中 ${recall.successful}回を「難しかった」以上で自己採点。`
+            : "通常の復習を続けると、前回から24時間以上あいた復習の記録がここに集まります。"}
+        </p>
+        <p className="muted">
+          通常復習の自己採点に基づく参考値です。短時間の朝晩クイズは含みません。間隔やカードの難しさによっても変わるため、回数と合わせて確認しましょう。
+        </p>
+      </section>
       <div className="stats">
         <div>
           <span>今日の想起練習</span>

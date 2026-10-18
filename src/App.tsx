@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { db, seedDemo, type Review } from "./db";
 import SettingsPage from "./SettingsPage";
+import SpeechInput from "./SpeechInput";
 import ListeningPage from "./ListeningPage";
 import StatsPage from "./StatsPage";
 import BackupRestore from "./BackupRestore";
@@ -72,6 +73,7 @@ export default function App() {
     [filter, setFilter] = useState(""),
     [mode, setMode] = useState<Mode>("ja-fr"),
     [answer, setAnswer] = useState(""),
+    [spokenAnswer, setSpokenAnswer] = useState(false),
     [gender, setGender] = useState(""),
     [revealed, setRevealed] = useState(false),
     [reviewCount, setReviewCount] = useState(0);
@@ -171,6 +173,7 @@ export default function App() {
     Number(learning.listeningDays.includes(dayKey(now)));
   const resetAnswer = () => {
     setAnswer("");
+    setSpokenAnswer(false);
     setGender("");
     setRevealed(false);
   };
@@ -435,47 +438,6 @@ export default function App() {
             <p className="subtitle">
               授業で出会った言葉を、自分の言葉にしていきましょう。
             </p>
-            <section className="daily-tasks panel">
-              <div className="section-heading">
-                <h2>今日の15分を、3つに分けて。</h2>
-                <span>5分ずつを目安に</span>
-              </div>
-              <div className="steps">
-                <button onClick={() => startQuiz("morning")}>
-                  <span className="step-num">朝</span>
-                  <div>
-                    <h3>起床後ブースター</h3>
-                    <p>昨晩の内容＋期限を迎えたカード</p>
-                  </div>
-                  <span>→</span>
-                </button>
-                <button onClick={() => navigate("listening")}>
-                  <span className="step-num">昼</span>
-                  <div>
-                    <h3>シャドーイング</h3>
-                    <p>例文を聴いて、声に出して練習</p>
-                  </div>
-                  <span>→</span>
-                </button>
-                <button onClick={() => startQuiz("night")}>
-                  <span className="step-num">夜</span>
-                  <div>
-                    <h3>寝る前クイズ</h3>
-                    <p>今日、初めて復習したカードだけ</p>
-                  </div>
-                  <span>→</span>
-                </button>
-              </div>
-              <div className="task-progress">
-                <label htmlFor="daily-progress">
-                  今日のメニュー：{completedTasks} / 3 完了
-                </label>
-                <progress id="daily-progress" max={3} value={completedTasks} />
-              </div>
-              <p className="muted">
-                朝晩は5分の追加練習です。採点しても通常のSRS期日は変更しません。
-              </p>
-            </section>
             <section className="hero">
               <div>
                 <div className="eyebrow">VOTRE RENDEZ-VOUS DU JOUR</div>
@@ -513,6 +475,47 @@ export default function App() {
                 </div>
                 <span className="spark">✳</span>
               </div>
+            </section>
+            <section className="daily-tasks panel">
+              <div className="section-heading">
+                <h2>必要なときだけ、追加の練習。</h2>
+                <span>各5分を目安に・任意</span>
+              </div>
+              <div className="steps">
+                <button onClick={() => startQuiz("morning")}>
+                  <span className="step-num">朝</span>
+                  <div>
+                    <h3>起床後ブースター</h3>
+                    <p>昨晩の内容＋期限を迎えたカード</p>
+                  </div>
+                  <span>→</span>
+                </button>
+                <button onClick={() => navigate("listening")}>
+                  <span className="step-num">昼</span>
+                  <div>
+                    <h3>シャドーイング</h3>
+                    <p>例文を聴いて、声に出して練習</p>
+                  </div>
+                  <span>→</span>
+                </button>
+                <button onClick={() => startQuiz("night")}>
+                  <span className="step-num">夜</span>
+                  <div>
+                    <h3>寝る前クイズ</h3>
+                    <p>今日、初めて復習したカードだけ</p>
+                  </div>
+                  <span>→</span>
+                </button>
+              </div>
+              <div className="task-progress">
+                <label htmlFor="daily-progress">
+                  今日のメニュー：{completedTasks} / 3 完了
+                </label>
+                <progress id="daily-progress" max={3} value={completedTasks} />
+              </div>
+              <p className="muted">
+                朝晩は5分の追加練習です。採点しても通常のSRS期日は変更しません。
+              </p>
             </section>
             <div className="stats">
               <div>
@@ -724,6 +727,29 @@ export default function App() {
                       onChange={(e) => setAnswer(e.target.value)}
                     />
                   </label>
+                  {!revealed && (
+                    <>
+                      <SpeechInput
+                        lang={mode === "fr-ja" ? "ja-JP" : "fr-FR"}
+                        onText={(text) =>
+                          setAnswer((previous) =>
+                            [previous, text].filter(Boolean).join(" "),
+                          )
+                        }
+                      />
+                      <label className="check-label spoken-answer">
+                        <input
+                          type="checkbox"
+                          checked={spokenAnswer}
+                          onChange={(e) => setSpokenAnswer(e.target.checked)}
+                        />
+                        声に出して答えた（文字入力を省略）
+                      </label>
+                      <p className="muted">
+                        答えを思い出して声に出したらチェック。名詞は性も選んで答え合わせしましょう。
+                      </p>
+                    </>
+                  )}
                   {current.part === "名詞" && (
                     <fieldset disabled={revealed}>
                       <legend>名詞の性</legend>
@@ -745,7 +771,8 @@ export default function App() {
                     <button
                       className="primary"
                       disabled={
-                        !answer.trim() || (current.part === "名詞" && !gender)
+                        (!answer.trim() && !spokenAnswer) ||
+                        (current.part === "名詞" && !gender)
                       }
                       onClick={() => setRevealed(true)}
                     >
@@ -966,16 +993,34 @@ export default function App() {
                 <h2>{draft.id ? "単語を編集" : "新しい言葉を登録"}</h2>
                 <form onSubmit={saveWord} className="word-form">
                   {(["french", "japanese"] as const).map((key) => (
-                    <label key={key}>
-                      {key === "french" ? "フランス語" : "日本語訳"} *
-                      <input
-                        required
-                        value={draft[key]}
-                        onChange={(e) =>
-                          setDraft({ ...draft, [key]: e.target.value })
+                    <div key={key}>
+                      <label>
+                        {key === "french" ? "フランス語" : "日本語訳"} *
+                        <input
+                          required
+                          value={draft[key]}
+                          onChange={(e) =>
+                            setDraft({ ...draft, [key]: e.target.value })
+                          }
+                        />
+                      </label>
+                      <SpeechInput
+                        lang={key === "french" ? "fr-FR" : "ja-JP"}
+                        label={
+                          key === "french"
+                            ? "フランス語を音声入力"
+                            : "日本語訳を音声入力"
+                        }
+                        onText={(text) =>
+                          setDraft((previous) => ({
+                            ...previous,
+                            [key]: [previous[key], text]
+                              .filter(Boolean)
+                              .join(" "),
+                          }))
                         }
                       />
-                    </label>
+                    </div>
                   ))}
                   <label>
                     品詞

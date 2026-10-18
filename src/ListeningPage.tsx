@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Word } from "./domain";
+import SpeechInput from "./SpeechInput";
 const liaison = [
   {
     text: "les amis",
@@ -158,18 +159,33 @@ export default function ListeningPage({
           </select>
         </label>
         {selection === "custom" && (
-          <label>
-            読み上げるフランス語
-            <textarea
-              rows={4}
-              value={custom}
-              onChange={(e) => {
+          <div>
+            <label>
+              読み上げるフランス語
+              <textarea
+                rows={4}
+                value={custom}
+                onChange={(e) => {
+                  stop();
+                  setCustom(e.target.value);
+                }}
+                placeholder="Aujourd’hui, j’apprends le français."
+              />
+            </label>
+            <SpeechInput
+              lang="fr-FR"
+              label="フランス語で1文話す"
+              onText={(value) => {
                 stop();
-                setCustom(e.target.value);
+                setCustom((previous) =>
+                  [previous, value].filter(Boolean).join(" "),
+                );
               }}
-              placeholder="Aujourd’hui, j’apprends le français."
             />
-          </label>
+            <p className="muted">
+              今日習った語を使って、短い1文を話してみましょう。認識された文章を確認してから聴き直せます。保存や日記の記入は不要です。
+            </p>
+          </div>
         )}
         <p className="listening-text" lang="fr">
           {text || "フランス語を入力してください。"}

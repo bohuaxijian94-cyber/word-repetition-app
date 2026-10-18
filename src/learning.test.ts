@@ -120,3 +120,24 @@ describe("backup validation", () => {
       expect(() => parseBackup(JSON.stringify(data))).toThrow();
   });
 });
+
+describe("delayed recall as a low-input outcome indicator", () => {
+  it("counts only consecutive normal reviews at least 24 hours apart and reports sample size", async () => {
+    const { delayedRecall } = await import("./learning");
+    expect(delayedRecall([])).toEqual({
+      total: 0,
+      successful: 0,
+      percent: null,
+    });
+    expect(
+      delayedRecall([
+        { wordId: 1, time: noon, quality: 4 },
+        { wordId: 1, time: noon + 86400000, quality: 4 },
+        { wordId: 2, time: noon, quality: 4 },
+        { wordId: 2, time: noon + 86400000, quality: 1 },
+        { wordId: 3, time: noon, quality: 4 },
+        { wordId: 3, time: noon + 60000, quality: 4 },
+      ]),
+    ).toEqual({ total: 2, successful: 1, percent: 50 });
+  });
+});

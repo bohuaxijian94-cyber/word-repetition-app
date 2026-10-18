@@ -118,3 +118,22 @@ export type LearningBackup = {
   night: Night | null;
   listeningDays?: string[];
 };
+
+export function delayedRecall(reviews: Review[]) {
+  const last = new Map<number, number>();
+  let total = 0,
+    successful = 0;
+  for (const review of [...reviews].sort((a, b) => a.time - b.time)) {
+    const previous = last.get(review.wordId);
+    if (previous !== undefined && review.time - previous >= 86400000) {
+      total++;
+      if (review.quality >= 3) successful++;
+    }
+    last.set(review.wordId, review.time);
+  }
+  return {
+    total,
+    successful,
+    percent: total ? Math.round((100 * successful) / total) : null,
+  };
+}
