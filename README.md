@@ -1,5 +1,7 @@
 # Mon Français
 
+**改訂を再開する方へ：[会話の引き継ぎ・再開メモ](docs/PROJECT_HANDOFF.md)**
+
 日本語UIの個人用フランス語学習アプリ。React / Vite / TypeScript / Dexie (IndexedDB)。外部サーバーやAPIキーは不要です。
 
 ## 開発
