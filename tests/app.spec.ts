@@ -1,4 +1,32 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+async function openPage(page: Page, name: RegExp) {
+  const button = page
+    .getByRole("navigation", { name: "メインナビゲーション" })
+    .getByRole("button", { name });
+  if (await button.count()) {
+    await button.click();
+    return;
+  }
+  await page
+    .getByRole("navigation", { name: "メインナビゲーション" })
+    .getByRole("button", { name: "その他", exact: true })
+    .click();
+  await page.getByRole("button", { name }).click();
+}
+async function answerEntry(page: Page) {
+  const entry = page.locator("details.answer-entry");
+  if ((await entry.count()) && (await entry.getAttribute("open")) === null)
+    await entry.locator("summary").click();
+}
+async function reviewOptions(page: Page) {
+  const options = page.locator("details.review-options");
+  if (
+    (await options.count()) &&
+    !((await options.getAttribute("open")) !== null)
+  )
+    await options.locator("summary").first().click();
+}
+
 test("register, persist, recall, grade, import, export and work offline", async ({
   page,
   context,
@@ -16,22 +44,21 @@ test("register, persist, recall, grade, import, export and work offline", async 
   await page
     .getByRole("combobox", { name: "名詞の性 *", exact: true })
     .selectOption("m");
+  await page.getByText("例文・授業の情報（任意）", { exact: true }).click();
   await page
     .getByLabel("例文（穴埋めには単語の原形を含めてください）")
     .fill("Le chat dort.");
   await page.getByRole("button", { name: "保存する", exact: true }).click();
   await expect(page.getByText("単語を保存しました。")).toBeVisible();
   await page.reload();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
-  await page.getByRole("button", { name: /フラッシュカード/ }).click();
+  await openPage(page, /フラッシュカード/);
   await expect(page.getByText("猫", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "答えを確認する" }),
   ).toBeDisabled();
+  await answerEntry(page);
   await page.getByLabel("あなたの答え").fill("chat");
   await page.getByLabel("le（男性名詞）").check();
   await page.getByRole("button", { name: "答えを確認する" }).click();
@@ -40,10 +67,7 @@ test("register, persist, recall, grade, import, export and work offline", async 
   await expect(
     page.getByText("今の条件で、復習するカードはありません。"),
   ).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /一括取り込み/ })
-    .click();
+  await openPage(page, /一括取り込み/);
   await page
     .getByLabel("テキスト貼り付け")
     .fill(
@@ -55,15 +79,13 @@ test("register, persist, recall, grade, import, export and work offline", async 
   ).toBeVisible();
   await page.getByRole("button", { name: "この内容で取り込む" }).click();
   await expect(page.getByText("2 語を取り込みました。")).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   await expect(page.getByRole("heading", { name: "la maison" })).toBeVisible();
   const dl = page.waitForEvent("download");
   await page.getByRole("button", { name: "JSONバックアップ" }).click();
   expect((await dl).suggestedFilename()).toBe("mon-francais-backup.json");
-  await page.getByRole("button", { name: /フラッシュカード/ }).click();
+  await openPage(page, /フラッシュカード/);
+  await reviewOptions(page);
   await page.getByRole("combobox", { name: "出題形式" }).selectOption("cloze");
   await expect(page.getByText("La _____ est jolie.")).toBeVisible();
   await page.evaluate(async () => {
@@ -82,10 +104,7 @@ test("register, persist, recall, grade, import, export and work offline", async 
   await expect(
     page.getByRole("heading", { name: "今日も、ひとつずつ。" }),
   ).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   await expect(page.getByRole("heading", { name: "la maison" })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -94,10 +113,7 @@ test("mobile layout and failed import leave stored data intact", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /一括取り込み/ })
-    .click();
+  await openPage(page, /一括取り込み/);
   await page
     .getByLabel("テキスト貼り付け")
     .fill("chat,猫,名詞,m\nmaison,家,名詞,");
@@ -131,6 +147,7 @@ test("guided demo can be reset without touching personal words or materials", as
   await expect(page.getByText("自分の教材 /")).toBeVisible();
   await page.goto("/");
   await page.getByRole("link", { name: "デモを試す →" }).click();
+  await page.getByText("デモの使い方 · 4ステップ", { exact: true }).click();
   await expect(
     page.getByText("デモ専用の単語帳です。自分の学習データには影響しません。"),
   ).toBeVisible();
@@ -141,6 +158,7 @@ test("guided demo can be reset without touching personal words or materials", as
   await expect(page.getByText("自分の教材 /")).toHaveCount(0);
   await guide.getByRole("button", { name: "次の説明へ" }).click();
   await guide.getByRole("button", { name: "復習を試す" }).click();
+  await answerEntry(page);
   await page.getByLabel("あなたの答え").fill("chat");
   await page.getByLabel("le（男性名詞）").check();
   await page.getByRole("button", { name: "答えを確認する" }).click();
@@ -165,10 +183,7 @@ test("guided demo can be reset without touching personal words or materials", as
     ),
   ).toBe(true);
   await page.getByRole("link", { name: "自分の学習に戻る" }).click();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   await expect(page.getByRole("heading", { name: "étudier" })).toBeVisible();
   await expect(page.getByText("自分の教材 /")).toBeVisible();
   await expect(page.getByRole("heading", { name: "le chat" })).toHaveCount(0);
@@ -178,20 +193,18 @@ test("daily cap, night quiz, statistics, persisted settings and non-destructive 
   page,
 }) => {
   await page.goto("/?demo=1");
-  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await openPage(page, /設定/);
   await page.getByLabel("1日の新規単語数", { exact: true }).fill("1");
   await page.getByRole("button", { name: "設定を保存", exact: true }).click();
   await expect(page.getByText("設定を保存しました。")).toBeVisible();
   await page.reload();
-  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await openPage(page, /設定/);
   await expect(page.getByLabel("1日の新規単語数", { exact: true })).toHaveValue(
     "1",
   );
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /フラッシュカード/ })
-    .click();
+  await openPage(page, /フラッシュカード/);
   await expect(page.getByText(/残り 1 語/)).toBeVisible();
+  await answerEntry(page);
   await page.getByLabel("あなたの答え").fill("chat");
   await page.getByLabel("le（男性名詞）").check();
   await page.getByRole("button", { name: "答えを確認する" }).click();
@@ -199,25 +212,20 @@ test("daily cap, night quiz, statistics, persisted settings and non-destructive 
   await expect(
     page.getByText("今の条件で、復習するカードはありません。"),
   ).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /今日の学習/ })
-    .click();
+  await openPage(page, /今日の学習/);
   await page.getByRole("button", { name: /寝る前クイズ/ }).click();
   await expect(page.getByText("猫", { exact: true })).toBeVisible();
+  await answerEntry(page);
   await page.getByLabel("あなたの答え").fill("chat");
   await page.getByLabel("le（男性名詞）").check();
   await page.getByRole("button", { name: "答えを確認する" }).click();
   await page.getByRole("button", { name: "思い出せた", exact: true }).click();
-  await page.locator("nav").getByRole("button", { name: /統計/ }).click();
+  await openPage(page, /統計/);
   await expect(
     page.getByRole("heading", { name: "学習カレンダー" }),
   ).toBeVisible();
   await expect(page.locator(".stats strong").first()).toHaveText("2回");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "JSONバックアップ" }).click();
   const download = await downloadPromise;
@@ -246,7 +254,7 @@ test("reminder stays in-app when permission is denied, fires once, and five-minu
     });
   });
   await page.goto("/?demo=1");
-  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await openPage(page, /設定/);
   await page.getByLabel("起床後の時刻", { exact: true }).fill("07:00");
   await page.getByLabel("リマインダーを使う", { exact: true }).check();
   await page.getByRole("button", { name: "設定を保存", exact: true }).click();
@@ -262,12 +270,9 @@ test("reminder stays in-app when permission is denied, fires once, and five-minu
       exact: false,
     }),
   ).toHaveCount(0);
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /今日の学習/ })
-    .click();
+  await openPage(page, /今日の学習/);
   await page.getByRole("button", { name: /起床後ブースター/ }).click();
-  await expect(page.getByLabel("あなたの答え")).toBeVisible();
+  await expect(page.getByText("猫", { exact: true })).toBeVisible();
   await page.clock.runFor(300000);
   await expect(page.getByText("5分の練習、おつかれさまでした。")).toBeVisible();
   await expect(
@@ -282,10 +287,7 @@ test("listening sends selected rate and text to speech API, loops, stops and mar
     `window.__speechCalls=[];Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[{name:'French test voice',voiceURI:'test',lang:'fr-FR',localService:true}],addEventListener(){},removeEventListener(){},cancel(){},pause(){},resume(){},speak(u){window.__speechCalls.push({text:u.text,rate:u.rate,lang:u.lang});window.__lastUtterance=u;u.onstart?.();}}});`,
   );
   await page.goto("/?demo=1");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /リスニング/ })
-    .click();
+  await openPage(page, /リスニング/);
   await page
     .getByRole("combobox", { name: "再生する内容", exact: true })
     .selectOption("liaison:0");
@@ -314,10 +316,7 @@ test("listening sends selected rate and text to speech API, loops, stops and mar
       exact: true,
     })
     .click();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /今日の学習/ })
-    .click();
+  await openPage(page, /今日の学習/);
   await expect(page.getByText("今日のメニュー：1 / 3 完了")).toBeVisible();
 });
 
@@ -325,7 +324,7 @@ test("exam scopes can be edited and filter several units, materials are editable
   page,
 }) => {
   await page.goto("/?demo=1");
-  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await openPage(page, /設定/);
   await page.getByLabel("テスト名", { exact: true }).fill("期末");
   await page.getByLabel("テスト日", { exact: true }).fill("2026-11-01");
   await page
@@ -341,10 +340,8 @@ test("exam scopes can be edited and filter several units, materials are editable
     .getByRole("button", { name: "テスト範囲の変更を保存", exact: true })
     .click();
   await expect(page.getByText("期末・修正版 · 2026-11-01")).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /フラッシュカード/ })
-    .click();
+  await openPage(page, /フラッシュカード/);
+  await reviewOptions(page);
   await page
     .getByText("小テスト・期末テストの範囲を選ぶ", { exact: true })
     .click();
@@ -353,10 +350,7 @@ test("exam scopes can be edited and filter several units, materials are editable
     .selectOption({ label: "期末・修正版（2026-11-01）" });
   await expect(page.getByText("猫", { exact: true })).toBeVisible();
   await expect(page.getByText(/残り 6 語/)).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /単語帳/ })
-    .click();
+  await openPage(page, /単語帳/);
   await page.getByLabel("教材名", { exact: true }).fill("教材A");
   await page.getByRole("button", { name: "教材を追加", exact: true }).click();
   await page.getByRole("button", { name: "教材を編集", exact: true }).click();
@@ -375,10 +369,7 @@ test("oral recall skips typing without requesting microphone and keeps noun gend
   page,
 }) => {
   await page.goto("/?demo=1");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /フラッシュカード/ })
-    .click();
+  await openPage(page, /フラッシュカード/);
   await page
     .getByLabel("声に出して答えた（文字入力を省略）", { exact: true })
     .check();
@@ -394,7 +385,7 @@ test("oral recall skips typing without requesting microphone and keeps noun gend
   await expect(
     page.getByLabel("声に出して答えた（文字入力を省略）", { exact: true }),
   ).not.toBeChecked();
-  await page.locator("nav").getByRole("button", { name: /統計/ }).click();
+  await openPage(page, /統計/);
   await expect(
     page.getByText("まだ記録がありません", { exact: true }),
   ).toBeVisible();
@@ -407,10 +398,8 @@ test("speech input appends final French transcript, ignores late results and sup
     `window.__recognitions=[];window.SpeechRecognition=class {start(){window.__recognitions.push(this);}stop(){this.onend?.();}abort(){this.onend?.();}};`,
   );
   await page.goto("/?demo=1");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /フラッシュカード/ })
-    .click();
+  await openPage(page, /フラッシュカード/);
+  await answerEntry(page);
   await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
   expect(await page.evaluate("window.__recognitions[0].lang")).toBe("fr-FR");
   await page.evaluate(
@@ -430,9 +419,11 @@ test("speech input appends final French transcript, ignores late results and sup
     "chat",
   );
   await page.getByRole("button", { name: "思い出せた", exact: true }).click();
+  await reviewOptions(page);
   await page
     .getByRole("combobox", { name: "出題形式", exact: true })
     .selectOption("fr-ja");
+  await answerEntry(page);
   await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
   expect(await page.evaluate("window.__recognitions.at(-1).lang")).toBe(
     "ja-JP",
@@ -446,16 +437,61 @@ test("denied speech input leaves keyboard and oral self-check available", async 
     `window.webkitSpeechRecognition=class{start(){this.onerror?.({error:'not-allowed'});this.onend?.();}abort(){this.onend?.();}stop(){this.onend?.();}};Object.defineProperty(window,'SpeechRecognition',{value:undefined});`,
   );
   await page.goto("/?demo=1");
-  await page
-    .locator("nav")
-    .getByRole("button", { name: /フラッシュカード/ })
-    .click();
+  await openPage(page, /フラッシュカード/);
+  await answerEntry(page);
   await page.getByRole("button", { name: "🎙 音声で入力", exact: true }).click();
   await expect(page.getByText(/マイクが許可されていません/)).toBeVisible();
+  await answerEntry(page);
   await page.getByLabel("あなたの答え", { exact: true }).fill("chat");
   await page.getByLabel("le（男性名詞）").check();
   await page
     .getByRole("button", { name: "答えを確認する", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
+});
+
+test("mobile Phase 2 has four fixed tabs, visible primary action and progressive controls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?demo=1");
+  const nav = page.getByRole("navigation", { name: "メインナビゲーション" });
+  await expect(nav.getByRole("button")).toHaveCount(4);
+  const start = page.getByRole("button", { name: "今日の復習をはじめる" });
+  await expect(start).toBeInViewport();
+  const box = await start.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  const navBox = await nav.boundingBox();
+  expect(navBox!.y).toBeGreaterThan(700);
+  await start.click();
+  await expect(page.getByText("猫", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "答えを確認する" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("combobox", { name: "出題形式" }),
+  ).not.toBeVisible();
+  await page.getByText("出題設定", { exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "出題形式" })).toBeVisible();
+  await openPage(page, /単語帳/);
+  await page.getByRole("button", { name: "＋ 単語を登録" }).click();
+  await expect(page.getByLabel("フランス語 *", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("タグ", { exact: true })).not.toBeVisible();
+  await page.getByText("例文・授業の情報（任意）", { exact: true }).click();
+  await expect(page.getByLabel("タグ", { exact: true })).toBeVisible();
+  await openPage(page, /設定/);
+  await expect(
+    page.getByRole("heading", { name: "自分のペースで。" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 320, height: 640 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

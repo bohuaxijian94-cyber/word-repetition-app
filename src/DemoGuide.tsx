@@ -24,7 +24,7 @@ export default function DemoGuide({
     },
     {
       title: "1語、思い出して答える",
-      body: "「猫」が出たら chat と入力し、le（男性名詞）を選んで「答えを確認する」を押します。「思い出せた」で採点すると、次の復習は翌日です。正誤は自分で見比べて採点します。",
+      body: "「猫」が出たら chat と声に出して「声に出して答えた」にチェック。le（男性名詞）を選んで「答えを確認する」を押します。文字・音声入力も開けます。「思い出せた」で採点すると、次の復習は翌日です。正誤は自分で見比べて採点します。",
       label: "復習を試す",
       action: onReview,
     },
@@ -44,70 +44,71 @@ export default function DemoGuide({
   const lesson = lessons[step];
   if (!isDemo)
     return (
-      <section className="demo-entry" aria-label="はじめての方へ">
-        <div>
-          <strong>はじめての方へ · 3分で使い方を体験</strong>
-          <p>サンプル6語で、登録・復習・取り込みの流れを試せます。</p>
-        </div>
-        <a className="primary" href={import.meta.env.BASE_URL + "?demo=1"}>
-          デモを試す →
-        </a>
-      </section>
+      <a
+        aria-label="デモを試す →"
+        className="demo-entry"
+        href={import.meta.env.BASE_URL + "?demo=1"}
+      >
+        サンプル6語で試す <span>デモを試す →</span>
+      </a>
     );
   return (
     <section className="demo-guide" aria-label="デモの使い方">
-      <div className="demo-top">
-        <div>
-          <span className="eyebrow">ESSAYEZ / 体験デモ</span>
-          <h2>まずは、3分だけ試してみましょう。</h2>
-          <p>デモ専用の単語帳です。自分の学習データには影響しません。</p>
+      <details>
+        <summary>デモの使い方 · 4ステップ</summary>
+        <div className="demo-top">
+          <div>
+            <span className="eyebrow">ESSAYEZ / 体験デモ</span>
+            <h2>まずは、3分だけ試してみましょう。</h2>
+            <p>デモ専用の単語帳です。自分の学習データには影響しません。</p>
+          </div>
+          <a href={import.meta.env.BASE_URL}>自分の学習に戻る ↗</a>
         </div>
-        <a href={import.meta.env.BASE_URL}>自分の学習に戻る ↗</a>
-      </div>
-      <ol className="demo-tabs">
-        {lessons.map((l, i) => (
-          <li key={l.title}>
+        <ol className="demo-tabs">
+          {lessons.map((l, i) => (
+            <li key={l.title}>
+              <button
+                aria-current={step === i ? "step" : undefined}
+                onClick={() => setStep(i)}
+              >
+                <span>{i + 1}</span>
+                {l.title}
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="demo-lesson">
+          <span className="eyebrow">STEP {step + 1} / 4</span>
+          <h3>{lesson.title}</h3>
+          <p>{lesson.body}</p>
+          <div className="demo-actions">
+            <button className="primary" onClick={lesson.action} disabled={busy}>
+              {lesson.label} →
+            </button>
+            {step < 3 && (
+              <button className="secondary" onClick={() => setStep(step + 1)}>
+                次の説明へ
+              </button>
+            )}
             <button
-              aria-current={step === i ? "step" : undefined}
-              onClick={() => setStep(i)}
+              className="text-button"
+              onClick={() => {
+                if (
+                  confirm(
+                    "デモ専用データを最初の6語に戻します。自分の学習データは変更しません。",
+                  )
+                ) {
+                  onReset();
+                  setStep(0);
+                }
+              }}
+              disabled={busy}
             >
-              <span>{i + 1}</span>
-              {l.title}
+              デモを最初からやり直す
             </button>
-          </li>
-        ))}
-      </ol>
-      <div className="demo-lesson">
-        <span className="eyebrow">STEP {step + 1} / 4</span>
-        <h3>{lesson.title}</h3>
-        <p>{lesson.body}</p>
-        <div className="demo-actions">
-          <button className="primary" onClick={lesson.action} disabled={busy}>
-            {lesson.label} →
-          </button>
-          {step < 3 && (
-            <button className="secondary" onClick={() => setStep(step + 1)}>
-              次の説明へ
-            </button>
-          )}
-          <button
-            className="text-button"
-            onClick={() => {
-              if (
-                confirm(
-                  "デモ専用データを最初の6語に戻します。自分の学習データは変更しません。",
-                )
-              ) {
-                onReset();
-                setStep(0);
-              }
-            }}
-            disabled={busy}
-          >
-            デモを最初からやり直す
-          </button>
+          </div>
         </div>
-      </div>
+      </details>
     </section>
   );
 }

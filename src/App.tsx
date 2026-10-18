@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { db, seedDemo, type Review } from "./db";
 import SettingsPage from "./SettingsPage";
+import Icon from "./Icon";
 import SpeechInput from "./SpeechInput";
 import ListeningPage from "./ListeningPage";
 import StatsPage from "./StatsPage";
@@ -27,7 +28,14 @@ import {
   type Mode,
 } from "./domain";
 type Page =
-  "home" | "review" | "words" | "import" | "stats" | "settings" | "listening";
+  | "home"
+  | "review"
+  | "words"
+  | "import"
+  | "stats"
+  | "settings"
+  | "listening"
+  | "more";
 const labels: Record<Page, string> = {
   home: "今日の学習",
   review: "フラッシュカード",
@@ -36,6 +44,7 @@ const labels: Record<Page, string> = {
   stats: "統計",
   settings: "設定",
   listening: "リスニング",
+  more: "その他",
 };
 const modes: Record<Mode, string> = {
   "ja-fr": "日本語 → フランス語",
@@ -159,6 +168,12 @@ export default function App() {
       (w) => mode !== "cloze" || (w.example && cloze(w) !== w.example),
     );
   const current = eligible[0];
+  const todayQueue = limitNewWords(
+    dueWords(words, now),
+    reviews,
+    learning.settings.newPerDay,
+    now,
+  );
   const completedTasks =
     Number(
       learning.practice.some(
@@ -179,6 +194,7 @@ export default function App() {
   };
   const navigate = (next: Page) => {
     setPage(next);
+    window.scrollTo({ top: 0, behavior: "instant" });
     if (next !== "review") setQuiz(null);
     setNotice("");
     setError("");
@@ -326,22 +342,34 @@ export default function App() {
           </span>
         </a>
         <div className="nav-label">APPRENDRE / 学ぶ</div>
-        <nav>
-          {(Object.keys(labels) as Page[]).map((key, i) => (
-            <button
-              key={key}
-              className={page === key ? "nav active" : "nav"}
-              onClick={() => navigate(key)}
-            >
-              <span>{["◈", "▱", "▤", "↓", "▥", "⚙", "♫"][i]}</span>
-              {labels[key]}
-              <span className="nav-end">
-                {key === "review" && dueWords(words).length > 0
-                  ? dueWords(words).length
-                  : ""}
-              </span>
-            </button>
-          ))}
+        <nav aria-label="メインナビゲーション">
+          {(["home", "words", "stats", "more"] as const).map((key) => {
+            const active =
+              key === page || (key === "home" && page === "review") ||
+              (key === "more" &&
+                ["import", "settings", "listening"].includes(page));
+            return (
+              <button
+                key={key}
+                className={active ? "nav active" : "nav"}
+                aria-label={key === "stats" ? "記録（統計）" : labels[key]}
+                aria-current={active ? "page" : undefined}
+                onClick={() => navigate(key)}
+              >
+                <Icon name={key} />
+                <span>
+                  {
+                    {
+                      home: "今日",
+                      words: "単語帳",
+                      stats: "記録",
+                      more: "その他",
+                    }[key]
+                  }
+                </span>
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-note">
           <span className="leaf">✳</span>
@@ -357,7 +385,7 @@ export default function App() {
       </aside>
       <main>
         <header>
-          <span>MON ESPACE D’APPRENTISSAGE</span>
+          <span className="app-title">Mon Français</span>
           <span>
             {new Intl.DateTimeFormat("ja-JP", {
               month: "long",
@@ -387,196 +415,124 @@ export default function App() {
             {notice}
           </div>
         )}
-        {(isDemo || page === "home") && (
-          <DemoGuide
-            busy={demoBusy || !loaded}
-            onWords={() => navigate("words")}
-            onReview={() => {
-              setFilter("");
-              setMode("ja-fr");
-              navigate("review");
-            }}
-            onImport={() => {
-              navigate("import");
-              setText(demoImport);
-              setPreview(null);
-            }}
-            onReset={() =>
-              void run(async () => {
-                if (!isDemo) return;
-                setDemoBusy(true);
-                try {
-                  await db.transaction("rw", db.words, db.reviews, async () => {
-                    await db.words.clear();
-                    await db.reviews.clear();
-                  });
-                  localStorage.removeItem(materialsKey);
-                  setMaterials([]);
-                  learning.reset();
-                  await seedDemo();
-                  await refresh();
-                  setFilter("");
-                  setMode("ja-fr");
-                  setReviewCount(0);
-                  setQuery("");
-                  setText("");
-                  setPreview(null);
-                  setEditing(false);
-                  navigate("home");
-                  setNotice("デモを最初の6語に戻しました。");
-                } finally {
-                  setDemoBusy(false);
-                }
-              })
-            }
-          />
-        )}
         {page === "home" && (
           <>
-            <div className="eyebrow">BONJOUR, ET BIENVENUE</div>
             <h1>今日も、ひとつずつ。</h1>
-            <p className="subtitle">
-              授業で出会った言葉を、自分の言葉にしていきましょう。
-            </p>
-            <section className="hero">
+            <p className="subtitle">覚えた言葉を、使える言葉に。</p>
+            <section className="hero" aria-label="今日の復習">
               <div>
-                <div className="eyebrow">VOTRE RENDEZ-VOUS DU JOUR</div>
-                <h2>記憶に、もう一度会いに。</h2>
+                <span className="eyebrow">今日の復習</span>
+                <h2>
+                  {!words.length
+                    ? "最初の言葉を、ひとつ。"
+                    : todayQueue.length
+                      ? `${todayQueue.length} 語を思い出そう。`
+                      : "今日の復習は完了です。"}
+                </h2>
                 <p>
-                  {dueWords(words).length
-                    ? `今日は ${dueWords(words).length} 語があなたの復習を待っています。`
-                    : "新しい単語を登録して、今日の学習を始めましょう。"}
-                  <br />
-                  思い出すたび、フランス語が少し近くなる。
+                  {!words.length
+                    ? "授業で出会った単語から始めましょう。"
+                    : todayQueue.length
+                      ? "声に出して答えるだけ。文字入力も使えます。"
+                      : dueWords(words, now).length
+                        ? "新しい単語の続きは明日。今日はここまででも大丈夫です。"
+                        : "次の復習日に、また会いましょう。"}
                 </p>
                 <button
                   className="primary"
-                  onClick={() =>
-                    navigate(dueWords(words).length ? "review" : "words")
-                  }
+                  onClick={() => {
+                    if (todayQueue.length) {
+                      setQuiz(null);
+                      setFilter("");
+                      setExamId("");
+                      setSelectedUnits([]);
+                      setReviewCount(0);
+                      navigate("review");
+                    } else {
+                      setDraft(blankWord());
+                      setEditing(true);
+                      navigate("words");
+                    }
+                  }}
                 >
-                  {dueWords(words).length
+                  {todayQueue.length
                     ? "今日の復習をはじめる"
-                    : "最初の単語を登録する"}{" "}
-                  <span>→</span>
+                    : words.length
+                      ? "単語を追加する"
+                      : "最初の単語を登録する"}
+                  <span aria-hidden="true">→</span>
                 </button>
-                <small>自分で答える → 答え合わせ → 次の復習へ</small>
               </div>
-              <div className="hero-art" aria-hidden="true">
-                <span className="orbit" />
-                <div className="paper back">un petit pas</div>
-                <div className="paper front">
-                  <span>LE MOT DU JOUR</span>
-                  <b>apprendre</b>
-                  <i>/ a.pʁɑ̃dʁ /</i>
-                  <hr />
-                  <em>学ぶ、身につける</em>
-                  <small>J’apprends un peu chaque jour.</small>
-                </div>
-                <span className="spark">✳</span>
+              <div className="hero-count" aria-hidden="true">
+                {todayQueue.length}
+                <span>語</span>
               </div>
             </section>
-            <section className="daily-tasks panel">
+            <div className="home-summary">
+              <span>
+                単語帳 <strong>{words.length}</strong> 語
+              </span>
+              <span>
+                今日の復習{" "}
+                <strong>
+                  {reviews.filter((r) => dayKey(r.time) === dayKey(now))
+                    .length +
+                    learning.practice.filter(
+                      (r) => dayKey(r.time) === dayKey(now),
+                    ).length}
+                </strong>{" "}
+                回
+              </span>
+              <button className="text-button" onClick={() => navigate("stats")}>
+                記録を見る →
+              </button>
+            </div>
+            <section className="practice-options">
               <div className="section-heading">
-                <h2>必要なときだけ、追加の練習。</h2>
-                <span>各5分を目安に・任意</span>
+                <h2>もう少し練習する</h2>
+                <span>任意・各5分を目安に</span>
               </div>
-              <div className="steps">
+              <div className="action-list">
                 <button onClick={() => startQuiz("morning")}>
-                  <span className="step-num">朝</span>
-                  <div>
-                    <h3>起床後ブースター</h3>
-                    <p>昨晩の内容＋期限を迎えたカード</p>
-                  </div>
-                  <span>→</span>
-                </button>
-                <button onClick={() => navigate("listening")}>
-                  <span className="step-num">昼</span>
-                  <div>
-                    <h3>シャドーイング</h3>
-                    <p>例文を聴いて、声に出して練習</p>
-                  </div>
-                  <span>→</span>
+                  <span className="action-icon">
+                    <Icon name="review" />
+                  </span>
+                  <span>
+                    <strong>起床後ブースター</strong>
+                    <small>直近の寝る前セットと、復習の続き</small>
+                  </span>
+                  <span aria-hidden="true">›</span>
                 </button>
                 <button onClick={() => startQuiz("night")}>
-                  <span className="step-num">夜</span>
-                  <div>
-                    <h3>寝る前クイズ</h3>
-                    <p>今日、初めて復習したカードだけ</p>
-                  </div>
-                  <span>→</span>
+                  <span className="action-icon">
+                    <Icon name="review" />
+                  </span>
+                  <span>
+                    <strong>寝る前クイズ</strong>
+                    <small>今日、新しく覚えた言葉をもう一度</small>
+                  </span>
+                  <span aria-hidden="true">›</span>
+                </button>
+                <button onClick={() => navigate("listening")}>
+                  <span className="action-icon">
+                    <Icon name="listening" />
+                  </span>
+                  <span>
+                    <strong>シャドーイング</strong>
+                    <small>聴いて、声に出す</small>
+                  </span>
+                  <span aria-hidden="true">›</span>
                 </button>
               </div>
-              <div className="task-progress">
-                <label htmlFor="daily-progress">
-                  今日のメニュー：{completedTasks} / 3 完了
-                </label>
-                <progress id="daily-progress" max={3} value={completedTasks} />
-              </div>
-              <p className="muted">
-                朝晩は5分の追加練習です。採点しても通常のSRS期日は変更しません。
-              </p>
             </section>
-            <div className="stats">
-              <div>
-                <span>復習を待つ単語</span>
-                <strong>
-                  {dueWords(words).length}
-                  <small>語</small>
-                </strong>
-                <p>今日の想起練習</p>
-              </div>
-              <div>
-                <span>わたしの単語帳</span>
-                <strong>
-                  {words.length}
-                  <small>語</small>
-                </strong>
-                <p>授業から積み重ねた言葉</p>
-              </div>
-              <div>
-                <span>既知の単語</span>
-                <strong>
-                  {words.filter((w) => w.known).length}
-                  <small>語</small>
-                </strong>
-                <p>復習対象から除外中</p>
-              </div>
-            </div>
-            <div className="section-heading">
-              <h2>今日の小さな一歩</h2>
-              <span>VOTRE PARCOURS</span>
-            </div>
-            <div className="steps">
-              <button onClick={() => navigate("words")}>
-                <span className="step-num">01</span>
-                <div>
-                  <h3>授業の言葉を集める</h3>
-                  <p>単語・例文を登録する</p>
-                </div>
-                <span>↗</span>
-              </button>
-              <button onClick={() => navigate("import")}>
-                <span className="step-num">02</span>
-                <div>
-                  <h3>ノートから取り込む</h3>
-                  <p>CSVやリストをそのまま貼り付け</p>
-                </div>
-                <span>↗</span>
-              </button>
-              <button onClick={() => navigate("review")}>
-                <span className="step-num">03</span>
-                <div>
-                  <h3>思い出して、定着させる</h3>
-                  <p>期限を迎えたカードを復習</p>
-                </div>
-                <span>↗</span>
-              </button>
-            </div>
-            <div className="quote">
-              “ Petit à petit, l’oiseau fait son nid. ”
-              <span>少しずつ、鳥は巣を作る。— フランスのことわざ</span>
-            </div>
+            <p className="task-progress">
+              今日のメニュー：{completedTasks} / 3 完了{" "}
+              <progress
+                aria-label="追加練習の完了数"
+                max={3}
+                value={completedTasks}
+              />
+            </p>
           </>
         )}
         {page === "review" && (
@@ -620,81 +576,84 @@ export default function App() {
               </section>
             )}
             <section className="panel">
-              <div className="toolbar">
-                <label>
-                  出題形式
-                  <select
-                    value={mode}
-                    onChange={(e) => {
-                      setMode(e.target.value as Mode);
-                      resetAnswer();
-                    }}
-                  >
-                    {Object.entries(modes).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  教材・単元・テスト・タグで絞り込み
-                  <input
-                    value={filter}
-                    onChange={(e) => {
-                      setFilter(e.target.value);
-                      resetAnswer();
-                    }}
-                    placeholder="例：Q3、教科書1"
-                  />
-                </label>
-              </div>
-              {!quiz && (
-                <details className="exam-filter">
-                  <summary>小テスト・期末テストの範囲を選ぶ</summary>
+              <details className="review-options">
+                <summary>出題設定</summary>
+                <div className="toolbar">
                   <label>
-                    テスト範囲
+                    出題形式
                     <select
-                      value={examId}
+                      value={mode}
                       onChange={(e) => {
-                        setExamId(e.target.value);
+                        setMode(e.target.value as Mode);
                         resetAnswer();
                       }}
                     >
-                      <option value="">すべての範囲</option>
-                      {learning.settings.exams.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name}（{e.deadline}）
+                      {Object.entries(modes).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v}
                         </option>
                       ))}
                     </select>
                   </label>
-                  <fieldset>
-                    <legend>単元を複数選択</legend>
-                    {unitOptions.map((unit) => (
-                      <label key={unit}>
-                        <input
-                          type="checkbox"
-                          checked={selectedUnits.includes(unit)}
-                          onChange={(e) => {
-                            setSelectedUnits(
-                              e.target.checked
-                                ? [...selectedUnits, unit]
-                                : selectedUnits.filter((u) => u !== unit),
-                            );
-                            resetAnswer();
-                          }}
-                        />
-                        {unit}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <p className="muted">
-                    設定画面でテストの範囲と期限を登録できます。新しい単語の出題上限は1日
-                    {learning.settings.newPerDay}語です。
-                  </p>
-                </details>
-              )}
+                  <label>
+                    教材・単元・テスト・タグで絞り込み
+                    <input
+                      value={filter}
+                      onChange={(e) => {
+                        setFilter(e.target.value);
+                        resetAnswer();
+                      }}
+                      placeholder="例：Q3、教科書1"
+                    />
+                  </label>
+                </div>
+                {!quiz && (
+                  <details className="exam-filter">
+                    <summary>小テスト・期末テストの範囲を選ぶ</summary>
+                    <label>
+                      テスト範囲
+                      <select
+                        value={examId}
+                        onChange={(e) => {
+                          setExamId(e.target.value);
+                          resetAnswer();
+                        }}
+                      >
+                        <option value="">すべての範囲</option>
+                        {learning.settings.exams.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name}（{e.deadline}）
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <fieldset>
+                      <legend>単元を複数選択</legend>
+                      {unitOptions.map((unit) => (
+                        <label key={unit}>
+                          <input
+                            type="checkbox"
+                            checked={selectedUnits.includes(unit)}
+                            onChange={(e) => {
+                              setSelectedUnits(
+                                e.target.checked
+                                  ? [...selectedUnits, unit]
+                                  : selectedUnits.filter((u) => u !== unit),
+                              );
+                              resetAnswer();
+                            }}
+                          />
+                          {unit}
+                        </label>
+                      ))}
+                    </fieldset>
+                    <p className="muted">
+                      設定画面でテストの範囲と期限を登録できます。新しい単語の出題上限は1日
+                      {learning.settings.newPerDay}語です。
+                    </p>
+                  </details>
+                )}
+              </details>
               <p className="muted">
                 残り {eligible.length} 語 · このセッションで {reviewCount}{" "}
                 語を復習
@@ -718,38 +677,41 @@ export default function App() {
                       </button>
                     )}
                   </div>
-                  <label className="answer-label">
-                    あなたの答え
-                    <input
-                      placeholder="思い出した答えを入力"
-                      value={answer}
-                      disabled={revealed}
-                      onChange={(e) => setAnswer(e.target.value)}
-                    />
-                  </label>
                   {!revealed && (
-                    <>
-                      <SpeechInput
-                        lang={mode === "fr-ja" ? "ja-JP" : "fr-FR"}
-                        onText={(text) =>
-                          setAnswer((previous) =>
-                            [previous, text].filter(Boolean).join(" "),
-                          )
-                        }
+                    <label className="check-label spoken-answer">
+                      <input
+                        type="checkbox"
+                        checked={spokenAnswer}
+                        onChange={(e) => setSpokenAnswer(e.target.checked)}
                       />
-                      <label className="check-label spoken-answer">
-                        <input
-                          type="checkbox"
-                          checked={spokenAnswer}
-                          onChange={(e) => setSpokenAnswer(e.target.checked)}
-                        />
-                        声に出して答えた（文字入力を省略）
-                      </label>
-                      <p className="muted">
-                        答えを思い出して声に出したらチェック。名詞は性も選んで答え合わせしましょう。
-                      </p>
-                    </>
+                      声に出して答えた（文字入力を省略）
+                    </label>
                   )}
+                  <details className="answer-entry">
+                    <summary>文字・音声で入力する</summary>
+                    <label className="answer-label">
+                      あなたの答え
+                      <input
+                        placeholder="思い出した答えを入力"
+                        value={answer}
+                        disabled={revealed}
+                        onChange={(e) => setAnswer(e.target.value)}
+                      />
+                    </label>
+                    {!revealed && (
+                      <>
+                        {" "}
+                        <SpeechInput
+                          lang={mode === "fr-ja" ? "ja-JP" : "fr-FR"}
+                          onText={(text) =>
+                            setAnswer((previous) =>
+                              [previous, text].filter(Boolean).join(" "),
+                            )
+                          }
+                        />
+                      </>
+                    )}
+                  </details>
                   {current.part === "名詞" && (
                     <fieldset disabled={revealed}>
                       <legend>名詞の性</legend>
@@ -922,72 +884,6 @@ export default function App() {
                 JSONバックアップ
               </button>
             </div>
-            <BackupRestore
-              onRestore={async (backup, restoreSettings) => {
-                const nextMaterials = [...materials, ...backup.materials];
-                const previousLearning = {
-                  settings: learning.settings,
-                  practice: learning.practice,
-                  night: learning.night,
-                  listeningDays: learning.listeningDays,
-                };
-                const previous = localStorage.getItem(materialsKey);
-                localStorage.setItem(
-                  materialsKey,
-                  JSON.stringify(nextMaterials),
-                );
-                try {
-                  await db.transaction("rw", db.words, db.reviews, async () => {
-                    const ids = new Map<number, number>();
-                    for (const word of backup.words) {
-                      const { id, ...value } = word;
-                      ids.set(id!, await db.words.add(value));
-                    }
-                    for (const review of backup.reviews)
-                      await db.reviews.add({
-                        ...review,
-                        wordId: ids.get(review.wordId)!,
-                      });
-                    if (backup.learning) {
-                      const value = backup.learning;
-                      learning.restore({
-                        listeningDays: [
-                          ...new Set([
-                            ...learning.listeningDays,
-                            ...(value.listeningDays || []),
-                          ]),
-                        ],
-                        settings: restoreSettings
-                          ? value.settings
-                          : learning.settings,
-                        practice: [
-                          ...learning.practice,
-                          ...value.practice.map((r) => ({
-                            ...r,
-                            wordId: ids.get(r.wordId)!,
-                          })),
-                        ],
-                        night: restoreSettings
-                          ? value.night
-                            ? {
-                                ...value.night,
-                                ids: value.night.ids.map((id) => ids.get(id)!),
-                              }
-                            : null
-                          : learning.night,
-                      });
-                    }
-                  });
-                } catch (e) {
-                  if (backup.learning) learning.restore(previousLearning);
-                  if (previous === null) localStorage.removeItem(materialsKey);
-                  else localStorage.setItem(materialsKey, previous);
-                  throw e;
-                }
-                setMaterials(nextMaterials);
-                await refresh();
-              }}
-            />
             {editing && (
               <section className="panel">
                 <h2>{draft.id ? "単語を編集" : "新しい言葉を登録"}</h2>
@@ -1084,37 +980,44 @@ export default function App() {
                       </label>
                     </>
                   )}
-                  {(
-                    [
-                      "example",
-                      "tags",
-                      "source",
-                      "unit",
-                      "test",
-                      "deadline",
-                    ] as const
-                  ).map((key, i) => (
-                    <label key={key}>
-                      {
+                  <details className="optional-fields">
+                    <summary>例文・授業の情報（任意）</summary>
+                    <div className="word-form">
+                      {(
                         [
-                          "例文（穴埋めには単語の原形を含めてください）",
-                          "タグ",
-                          "出典教材",
-                          "単元 / 週",
-                          "テスト名",
-                          "テストの期限",
-                        ][i]
-                      }
-                      <input
-                        type={key === "deadline" ? "date" : "text"}
-                        value={draft[key]}
-                        list={key === "source" ? "material-options" : undefined}
-                        onChange={(e) =>
-                          setDraft({ ...draft, [key]: e.target.value })
-                        }
-                      />
-                    </label>
-                  ))}
+                          "example",
+                          "tags",
+                          "source",
+                          "unit",
+                          "test",
+                          "deadline",
+                        ] as const
+                      ).map((key, i) => (
+                        <label key={key}>
+                          {
+                            [
+                              "例文（穴埋めには単語の原形を含めてください）",
+                              "タグ",
+                              "出典教材",
+                              "単元 / 週",
+                              "テスト名",
+                              "テストの期限",
+                            ][i]
+                          }
+                          <input
+                            type={key === "deadline" ? "date" : "text"}
+                            value={draft[key]}
+                            list={
+                              key === "source" ? "material-options" : undefined
+                            }
+                            onChange={(e) =>
+                              setDraft({ ...draft, [key]: e.target.value })
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                   <datalist id="material-options">
                     {materials.map((m, i) => (
                       <option key={i} value={m.name} />
@@ -1334,6 +1237,72 @@ export default function App() {
                 </div>
               ))}
             </section>
+            <BackupRestore
+              onRestore={async (backup, restoreSettings) => {
+                const nextMaterials = [...materials, ...backup.materials];
+                const previousLearning = {
+                  settings: learning.settings,
+                  practice: learning.practice,
+                  night: learning.night,
+                  listeningDays: learning.listeningDays,
+                };
+                const previous = localStorage.getItem(materialsKey);
+                localStorage.setItem(
+                  materialsKey,
+                  JSON.stringify(nextMaterials),
+                );
+                try {
+                  await db.transaction("rw", db.words, db.reviews, async () => {
+                    const ids = new Map<number, number>();
+                    for (const word of backup.words) {
+                      const { id, ...value } = word;
+                      ids.set(id!, await db.words.add(value));
+                    }
+                    for (const review of backup.reviews)
+                      await db.reviews.add({
+                        ...review,
+                        wordId: ids.get(review.wordId)!,
+                      });
+                    if (backup.learning) {
+                      const value = backup.learning;
+                      learning.restore({
+                        listeningDays: [
+                          ...new Set([
+                            ...learning.listeningDays,
+                            ...(value.listeningDays || []),
+                          ]),
+                        ],
+                        settings: restoreSettings
+                          ? value.settings
+                          : learning.settings,
+                        practice: [
+                          ...learning.practice,
+                          ...value.practice.map((r) => ({
+                            ...r,
+                            wordId: ids.get(r.wordId)!,
+                          })),
+                        ],
+                        night: restoreSettings
+                          ? value.night
+                            ? {
+                                ...value.night,
+                                ids: value.night.ids.map((id) => ids.get(id)!),
+                              }
+                            : null
+                          : learning.night,
+                      });
+                    }
+                  });
+                } catch (e) {
+                  if (backup.learning) learning.restore(previousLearning);
+                  if (previous === null) localStorage.removeItem(materialsKey);
+                  else localStorage.setItem(materialsKey, previous);
+                  throw e;
+                }
+                setMaterials(nextMaterials);
+                await refresh();
+              }}
+            />
           </>
         )}
         {page === "import" && (
@@ -1456,6 +1425,84 @@ export default function App() {
             words={words}
             completed={learning.listeningDays.includes(dayKey(now))}
             onComplete={() => void run(async () => learning.markListening())}
+          />
+        )}
+        {page === "more" && (
+          <>
+            <h1>その他</h1>
+            <p className="subtitle">必要な機能を、ここから。</p>
+            <section className="action-list more-list">
+              {(["review", "import", "listening", "settings"] as const).map(
+                (key) => (
+                  <button key={key} onClick={() => navigate(key)}>
+                    <span className="action-icon">
+                      <Icon name={key} />
+                    </span>
+                    <span>
+                      <strong>{labels[key]}</strong>
+                      <small>
+                        {
+                          {
+                            review: "出題形式とテスト範囲を選ぶ",
+                            import: "CSVや授業のリストを貼り付ける",
+                            listening: "速度を変えて、例文を聴く",
+                            settings: "新規単語数・通知・テストの範囲",
+                          }[key]
+                        }
+                      </small>
+                    </span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                ),
+              )}
+            </section>
+            <p className="privacy-note">
+              学習データは、このブラウザに保存されます。
+            </p>
+          </>
+        )}
+        {(isDemo || page === "home") && (
+          <DemoGuide
+            busy={demoBusy || !loaded}
+            onWords={() => navigate("words")}
+            onReview={() => {
+              setFilter("");
+              setMode("ja-fr");
+              navigate("review");
+            }}
+            onImport={() => {
+              navigate("import");
+              setText(demoImport);
+              setPreview(null);
+            }}
+            onReset={() =>
+              void run(async () => {
+                if (!isDemo) return;
+                setDemoBusy(true);
+                try {
+                  await db.transaction("rw", db.words, db.reviews, async () => {
+                    await db.words.clear();
+                    await db.reviews.clear();
+                  });
+                  localStorage.removeItem(materialsKey);
+                  setMaterials([]);
+                  learning.reset();
+                  await seedDemo();
+                  await refresh();
+                  setFilter("");
+                  setMode("ja-fr");
+                  setReviewCount(0);
+                  setQuery("");
+                  setText("");
+                  setPreview(null);
+                  setEditing(false);
+                  navigate("home");
+                  setNotice("デモを最初の6語に戻しました。");
+                } finally {
+                  setDemoBusy(false);
+                }
+              })
+            }
           />
         )}
         <footer>
