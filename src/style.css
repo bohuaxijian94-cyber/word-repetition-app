@@ -1021,3 +1021,142 @@ fieldset label {
     font-size: 12px;
   }
 }
+
+.check-label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.span-all {
+  grid-column: 1/-1;
+}
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 6px;
+  max-width: 680px;
+}
+.heatmap span,
+.heatmap-legend span {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  border: 1px solid #d7dfcd;
+  background: #edf0e5;
+}
+.heatmap [data-level="1"],
+.heatmap-legend [data-level="1"] {
+  background: #cadab6;
+}
+.heatmap [data-level="2"],
+.heatmap-legend [data-level="2"] {
+  background: #98b478;
+}
+.heatmap [data-level="3"],
+.heatmap-legend [data-level="3"] {
+  background: #62854e;
+}
+.heatmap [data-level="4"],
+.heatmap-legend [data-level="4"] {
+  background: #294f3e;
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #7e8973;
+  margin-top: 15px;
+}
+.heatmap-legend span {
+  width: 14px;
+  height: 14px;
+}
+.mastery-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 60px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e3e7db;
+  padding: 16px 0;
+  font-size: 12px;
+}
+.mastery-row meter {
+  width: 100%;
+}
+.exam-filter {
+  border: 1px solid #e1e5d6;
+  padding: 15px;
+  border-radius: 7px;
+  margin: 15px 0;
+}
+.exam-filter summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.daily-tasks .steps {
+  margin: 20px 0;
+}
+.daily-tasks > p {
+  margin: 15px 0 0;
+}
+.sidebar nav {
+  overflow-y: auto;
+}
+.notice p {
+  margin: 8px 0;
+}
+a.primary {
+  text-decoration: none;
+}
+@media (max-width: 720px) {
+  nav {
+    flex-wrap: wrap;
+  }
+  .nav {
+    flex: 1 0 28%;
+  }
+  .mastery-row {
+    grid-template-columns: 2fr 1fr 45px;
+    font-size: 10px;
+  }
+  .heatmap {
+    gap: 4px;
+  }
+}
+.listening-text {
+  font:
+    28px/1.7 Georgia,
+    serif;
+  padding: 24px;
+  background: #f0f4e7;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.guide-list {
+  font-size: 13px;
+  line-height: 2.2;
+  padding-left: 22px;
+}
+progress {
+  accent-color: #355e43;
+  width: 100%;
+  height: 14px;
+}
+.task-progress {
+  font-size: 12px;
+  color: #718168;
+  margin: 14px 0;
+}
+.check-label input {
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .listening-text {
+    font-size: 22px;
+    padding: 18px;
+  }
+  .nav {
+    flex-basis: 22%;
+  }
+}

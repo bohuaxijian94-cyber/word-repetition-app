@@ -173,3 +173,200 @@ test("guided demo can be reset without touching personal words or materials", as
   await expect(page.getByText("自分の教材 /")).toBeVisible();
   await expect(page.getByRole("heading", { name: "le chat" })).toHaveCount(0);
 });
+
+test("daily cap, night quiz, statistics, persisted settings and non-destructive backup restore", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1");
+  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await page.getByLabel("1日の新規単語数", { exact: true }).fill("1");
+  await page.getByRole("button", { name: "設定を保存", exact: true }).click();
+  await expect(page.getByText("設定を保存しました。")).toBeVisible();
+  await page.reload();
+  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await expect(page.getByLabel("1日の新規単語数", { exact: true })).toHaveValue(
+    "1",
+  );
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /フラッシュカード/ })
+    .click();
+  await expect(page.getByText(/残り 1 語/)).toBeVisible();
+  await page.getByLabel("あなたの答え").fill("chat");
+  await page.getByLabel("le（男性名詞）").check();
+  await page.getByRole("button", { name: "答えを確認する" }).click();
+  await page.getByRole("button", { name: "思い出せた", exact: true }).click();
+  await expect(
+    page.getByText("今の条件で、復習するカードはありません。"),
+  ).toBeVisible();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /今日の学習/ })
+    .click();
+  await page.getByRole("button", { name: /寝る前クイズ/ }).click();
+  await expect(page.getByText("猫", { exact: true })).toBeVisible();
+  await page.getByLabel("あなたの答え").fill("chat");
+  await page.getByLabel("le（男性名詞）").check();
+  await page.getByRole("button", { name: "答えを確認する" }).click();
+  await page.getByRole("button", { name: "思い出せた", exact: true }).click();
+  await page.locator("nav").getByRole("button", { name: /統計/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "学習カレンダー" }),
+  ).toBeVisible();
+  await expect(page.locator(".stats strong").first()).toHaveText("2回");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /単語帳/ })
+    .click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSONバックアップ" }).click();
+  const download = await downloadPromise;
+  const file = await download.path();
+  await page.getByLabel("バックアップファイル").setInputFiles(file!);
+  await expect(page.getByText(/単語 6 枚 \/ 復習履歴 1 件/)).toBeVisible();
+  await page.getByRole("button", { name: "確認した内容を追加復元" }).click();
+  await expect(
+    page.getByText("バックアップを追加復元しました。"),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "le chat" })).toHaveCount(2);
+});
+
+test("reminder stays in-app when permission is denied, fires once, and five-minute quiz expires", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-10-18T07:00:00") });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "Notification", {
+      value: class {
+        static permission = "denied";
+        static requestPermission() {
+          return Promise.resolve("denied");
+        }
+      },
+    });
+  });
+  await page.goto("/?demo=1");
+  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await page.getByLabel("起床後の時刻", { exact: true }).fill("07:00");
+  await page.getByLabel("リマインダーを使う", { exact: true }).check();
+  await page.getByRole("button", { name: "設定を保存", exact: true }).click();
+  await expect(
+    page.getByText("朝の5分。起床後ブースターを始めましょう。", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
+  await page.clock.runFor(30000);
+  await expect(
+    page.getByText("朝の5分。起床後ブースターを始めましょう。", {
+      exact: false,
+    }),
+  ).toHaveCount(0);
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /今日の学習/ })
+    .click();
+  await page.getByRole("button", { name: /起床後ブースター/ }).click();
+  await expect(page.getByLabel("あなたの答え")).toBeVisible();
+  await page.clock.runFor(300000);
+  await expect(page.getByText("5分の練習、おつかれさまでした。")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "答えを確認する" }),
+  ).toHaveCount(0);
+});
+
+test("listening sends selected rate and text to speech API, loops, stops and marks daily completion", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    `window.__speechCalls=[];Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[{name:'French test voice',voiceURI:'test',lang:'fr-FR',localService:true}],addEventListener(){},removeEventListener(){},cancel(){},pause(){},resume(){},speak(u){window.__speechCalls.push({text:u.text,rate:u.rate,lang:u.lang});window.__lastUtterance=u;u.onstart?.();}}});`,
+  );
+  await page.goto("/?demo=1");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /リスニング/ })
+    .click();
+  await page
+    .getByRole("combobox", { name: "再生する内容", exact: true })
+    .selectOption("liaison:0");
+  await page
+    .getByRole("combobox", { name: "再生速度", exact: true })
+    .selectOption("0.75");
+  await page.getByLabel("リピート再生", { exact: true }).check();
+  await page.getByRole("button", { name: "▶ 再生", exact: true }).click();
+  expect(await page.evaluate("window.__speechCalls[0]")).toEqual({
+    text: "les amis",
+    rate: 0.75,
+    lang: "fr-FR",
+  });
+  await page.evaluate("window.__lastUtterance.onend()");
+  expect(await page.evaluate("window.__speechCalls.length")).toBe(2);
+  await page.getByRole("button", { name: "一時停止", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "再開", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "■ 停止", exact: true }).click();
+  await page.evaluate("window.__lastUtterance.onend()");
+  expect(await page.evaluate("window.__speechCalls.length")).toBe(2);
+  await page
+    .getByRole("button", {
+      name: "今日のシャドーイングを完了にする",
+      exact: true,
+    })
+    .click();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /今日の学習/ })
+    .click();
+  await expect(page.getByText("今日のメニュー：1 / 3 完了")).toBeVisible();
+});
+
+test("exam scopes can be edited and filter several units, materials are editable without deleting words", async ({
+  page,
+}) => {
+  await page.goto("/?demo=1");
+  await page.locator("nav").getByRole("button", { name: /設定/ }).click();
+  await page.getByLabel("テスト名", { exact: true }).fill("期末");
+  await page.getByLabel("テスト日", { exact: true }).fill("2026-11-01");
+  await page
+    .getByRole("combobox", { name: "対象教材", exact: true })
+    .selectOption("デモ教科書");
+  await page.getByLabel("第3課", { exact: true }).check();
+  await page
+    .getByRole("button", { name: "テスト範囲を追加", exact: true })
+    .click();
+  await page.getByRole("button", { name: "範囲を編集", exact: true }).click();
+  await page.getByLabel("テスト名", { exact: true }).fill("期末・修正版");
+  await page
+    .getByRole("button", { name: "テスト範囲の変更を保存", exact: true })
+    .click();
+  await expect(page.getByText("期末・修正版 · 2026-11-01")).toBeVisible();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /フラッシュカード/ })
+    .click();
+  await page
+    .getByText("小テスト・期末テストの範囲を選ぶ", { exact: true })
+    .click();
+  await page
+    .getByRole("combobox", { name: "テスト範囲", exact: true })
+    .selectOption({ label: "期末・修正版（2026-11-01）" });
+  await expect(page.getByText("猫", { exact: true })).toBeVisible();
+  await expect(page.getByText(/残り 6 語/)).toBeVisible();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /単語帳/ })
+    .click();
+  await page.getByLabel("教材名", { exact: true }).fill("教材A");
+  await page.getByRole("button", { name: "教材を追加", exact: true }).click();
+  await page.getByRole("button", { name: "教材を編集", exact: true }).click();
+  await page.getByLabel("教材名", { exact: true }).fill("教材B");
+  await page
+    .getByRole("button", { name: "教材の変更を保存", exact: true })
+    .click();
+  await expect(page.getByText("教材B /")).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "教材を削除", exact: true }).click();
+  await expect(page.getByText("教材B /")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "le chat" })).toBeVisible();
+});
