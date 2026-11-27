@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" href="data:," />
+    <title>EVE 販売ペースチェッカー</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #202124;
+        --ink-2: #5f6368;
+        --green: #34A853;
+        --green-dark: #137333;
+        --amber: #b06000;
+        --red: #d93025;
+        --bg: #ffffff;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        min-height: 100dvh;
+        padding: calc(20px + env(safe-area-inset-top)) 20px calc(18px + env(safe-area-inset-bottom));
+        -webkit-tap-highlight-color: transparent;
+      }
+      .num { font-variant-numeric: tabular-nums; }
+
+      /* 1. 売れた本数 */
+      .count-block { text-align: center; padding-top: 6px; }
+      .count-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 10px;
+      }
+      .count-num {
+        font-size: clamp(120px, 34vw, 190px);
+        font-weight: 900;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        display: inline-block;
+      }
+      .count-num.pop { animation: pop .35s ease; }
+      @keyframes pop {
+        0% { transform: scale(1); color: var(--green-dark); }
+        40% { transform: scale(1.12); color: var(--green-dark); }
+        100% { transform: scale(1); color: var(--ink); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .count-num.pop { animation: none; color: var(--green-dark); }
+      }
+      .count-unit { font-size: 20px; font-weight: 700; color: var(--ink-2); }
+
+      /* 2. 売上 */
+      .sales {
+        text-align: center;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--ink-2);
+        margin-top: 8px;
+      }
+
+      /* 3. 数値グリッド（2列×3行） */
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 12px;
+        margin-top: 18px;
+      }
+      .stat {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 8px 12px 10px;
+        text-align: center;
+      }
+      .stat-label { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+      .stat-value { font-size: 24px; font-weight: 900; line-height: 1.25; font-variant-numeric: tabular-nums; }
+      .stat-value small { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
+      /* 4. ＋1ボタン（残りの画面いっぱい） */
+      .plus-btn {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        flex: 1;
+        width: 100%;
+        margin-top: 16px;
+        min-height: 26dvh;
+        border-radius: 24px;
+        background: var(--green);
+        color: #fff;
+        font-size: clamp(52px, 15vw, 76px);
+        font-weight: 900;
+        letter-spacing: .02em;
+        box-shadow: 0 4px 14px rgba(52,168,83,.35);
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .plus-btn:active { transform: scale(.98); }
+      .plus-btn:disabled { opacity: .5; box-shadow: none; transform: none; }
+
+      /* 5. 一言（1行だけ） */
+      .pace {
+        text-align: center;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--ink-2);
+        margin: 14px 0 0;
+        min-height: 1.5em;
+      }
+      .pace.good { color: var(--green-dark); }
+      .pace.mid { color: var(--amber); }
+      .pace.bad { color: var(--red); }
+    </style>
+  </head>
+  <body>
+    <div class="count-block">
+      <div class="count-row">
+        <span class="count-num" id="countNum">…</span>
+        <span class="count-unit">本 / 300本</span>
+      </div>
+      <div class="sales num" id="salesLine">…</div>
+    </div>
+
+    <div class="stats" aria-label="販売ペースの数値">
+      <div class="stat"><div class="stat-label">達成率</div><div class="stat-value" id="statRate">…</div></div>
+      <div class="stat"><div class="stat-label">残り</div><div class="stat-value" id="statRemain">…</div></div>
+      <div class="stat"><div class="stat-label">残り時間</div><div class="stat-value" id="statTimeLeft">…</div></div>
+      <div class="stat"><div class="stat-label">必要ペース</div><div class="stat-value" id="statNeedPace">…</div></div>
+      <div class="stat"><div class="stat-label">現在ペース</div><div class="stat-value" id="statNowPace">…</div></div>
+      <div class="stat"><div class="stat-label">予測</div><div class="stat-value" id="statForecast">…</div></div>
+    </div>
+
+    <button type="button" class="plus-btn" id="plusBtn" disabled>＋1 売れた！</button>
+
+    <p class="pace num" id="paceLine" aria-live="polite">…</p>
+
+    <script>
+      (function () {
+        "use strict";
+
+        var PRICE = 400;
+        var TARGET = 300;
+
+        // Sales windows in JST. 10:00 JST = 01:00 UTC.
+        var DAYS = [
+          { key: "day1", start: Date.UTC(2026, 10, 27, 1, 0, 0), end: Date.UTC(2026, 10, 27, 8, 0, 0) },   // 11/27 10:00–17:00
+          { key: "day2", start: Date.UTC(2026, 10, 28, 1, 0, 0), end: Date.UTC(2026, 10, 28, 7, 30, 0) }   // 11/28 10:00–16:30
+        ];
+
+        var fmtDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit"
+        });
+
+        function dayIndex(nowMs) {
+          return fmtDate.format(new Date(nowMs)) === "2026-11-28" ? 1 : 0;
+        }
+
+        var API_BASE = "https://abacus.jasoncameron.dev";
+        var NS = "evefrankfurt2026";
+
+        var countNum = document.getElementById("countNum");
+        var salesLine = document.getElementById("salesLine");
+        var paceLine = document.getElementById("paceLine");
+        var plusBtn = document.getElementById("plusBtn");
+        var statRate = document.getElementById("statRate");
+        var statRemain = document.getElementById("statRemain");
+        var statTimeLeft = document.getElementById("statTimeLeft");
+        var statNeedPace = document.getElementById("statNeedPace");
+        var statNowPace = document.getElementById("statNowPace");
+        var statForecast = document.getElementById("statForecast");
+
+        var count = null; // 未取得の間は null
+        var hitting = false;
+
+        function apiCall(path) {
+          return fetch(API_BASE + path, { cache: "no-store" }).then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          });
+        }
+
+        function fmtNum(n) { return n.toLocaleString("ja-JP"); }
+
+        function statHTML(value, unit) {
+          return value + "<small>" + unit + "</small>";
+        }
+
+        function render() {
+          if (count === null) {
+            countNum.textContent = "…";
+            salesLine.textContent = "…";
+            paceLine.textContent = "…";
+            paceLine.className = "pace num";
+            statRate.textContent = "…";
+            statRemain.textContent = "…";
+            statTimeLeft.textContent = "…";
+            statNeedPace.textContent = "…";
+            statNowPace.textContent = "…";
+            statForecast.textContent = "…";
+            plusBtn.disabled = true;
+            return;
+          }
+          countNum.textContent = fmtNum(count);
+          salesLine.textContent = "¥" + fmtNum(count * PRICE);
+          plusBtn.disabled = hitting;
+
+          var now = Date.now();
+          var day = DAYS[dayIndex(now)];
+          var totalMs = day.end - day.start;
+          var totalHours = totalMs / 3600000;
+          var elapsedMs = Math.min(Math.max(now - day.start, 0), totalMs);
+          var elapsedHours = elapsedMs / 3600000;
+          var remainMs = Math.min(Math.max(day.end - now, 0), totalMs);
+          var remainHours = remainMs / 3600000;
+          var remain = Math.max(TARGET - count, 0);
+
+          // 1. 達成率（%・小数1桁）
+          statRate.innerHTML = statHTML((count / TARGET * 100).toFixed(1), "%");
+          // 2. 残り本数
+          statRemain.innerHTML = statHTML(fmtNum(remain), "本");
+          // 3. 残り時間（◯時間◯分）
+          var remainMinTotal = Math.floor(remainMs / 60000);
+          statTimeLeft.innerHTML = statHTML(Math.floor(remainMinTotal / 60), "時間") + statHTML(remainMinTotal % 60, "分");
+          // 4. 必要ペース（本/時・整数）
+          var needPace = remainHours > 0 ? Math.ceil(remain / remainHours) : null;
+          statNeedPace.innerHTML = needPace === null ? "—" : statHTML(fmtNum(needPace), "本/時");
+          // 5. 現在ペース（本/時・整数）
+          var nowPace = elapsedHours > 0 ? count / elapsedHours : null;
+          statNowPace.innerHTML = nowPace === null ? "—" : statHTML(fmtNum(Math.round(nowPace)), "本/時");
+          // 6. 予測（このペースで終了時に何本か）
+          var forecast = nowPace === null ? null : Math.round(nowPace * totalHours);
+          statForecast.innerHTML = forecast === null ? "—" : statHTML(fmtNum(forecast), "本");
+
+          // 一言（ペース判定で自動切替）
+          paceLine.className = "pace num";
+          if (count >= TARGET) {
+            paceLine.textContent = "完売！おつかれさまでした";
+            paceLine.classList.add("good");
+          } else if (now < day.start) {
+            paceLine.textContent = "まもなく開店。準備万端でいきましょう";
+          } else if (now > day.end) {
+            paceLine.textContent = "おつかれさまでした。また明日がんばりましょう";
+          } else if (forecast !== null && forecast >= TARGET) {
+            paceLine.textContent = "このペースで完売いけます。その調子！";
+            paceLine.classList.add("good");
+          } else if (forecast !== null && forecast >= 250) {
+            paceLine.textContent = "あと少し。声かけ強めでいきましょう";
+            paceLine.classList.add("mid");
+          } else {
+            paceLine.textContent = "ここからが勝負。呼び込み全開でいきましょう！";
+            paceLine.classList.add("bad");
+          }
+        }
+
+        function fetchCount() {
+          var key = DAYS[dayIndex(Date.now())].key;
+          return apiCall("/get/" + NS + "/" + key).then(function (res) {
+            if (typeof res.value === "number") count = res.value;
+            render();
+          }).catch(function () {
+            if (count === null) render();
+          });
+        }
+
+        plusBtn.addEventListener("click", function () {
+          if (hitting || count === null) return;
+          hitting = true;
+          plusBtn.disabled = true;
+          var key = DAYS[dayIndex(Date.now())].key;
+          apiCall("/hit/" + NS + "/" + key).then(function (res) {
+            if (typeof res.value === "number") {
+              count = res.value;
+              countNum.classList.remove("pop");
+              void countNum.offsetWidth; // restart animation
+              countNum.classList.add("pop");
+            }
+          }).catch(function () {
+            return fetchCount();
+          }).then(function () {
+            hitting = false;
+            render();
+          });
+        });
+
+        countNum.addEventListener("animationend", function () {
+          countNum.classList.remove("pop");
+        });
+
+        fetchCount();
+        setInterval(fetchCount, 15000);
+        setInterval(render, 30000);
+      })();
+    </script>
+  </body>
+</html>
