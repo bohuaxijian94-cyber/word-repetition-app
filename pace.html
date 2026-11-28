@@ -161,7 +161,7 @@
       <div class="stat"><div class="stat-label">予測</div><div class="stat-value" id="statForecast">…</div></div>
     </div>
 
-    <button type="button" class="plus-btn" id="plusBtn" disabled>＋1 売れた！</button>
+    <button type="button" class="plus-btn" id="plusBtn" disabled>＋1</button>
 
     <p class="pace num" id="paceLine" aria-live="polite">…</p>
 
@@ -276,20 +276,20 @@
           // 一言（ペース判定で自動切替）
           paceLine.className = "pace num";
           if (count >= TARGET) {
-            paceLine.textContent = "完売！おつかれさまでした";
+            paceLine.textContent = "完売しました！ありがとうございました";
             paceLine.classList.add("good");
           } else if (now < day.start) {
-            paceLine.textContent = "まもなく開店。準備万端でいきましょう";
+            paceLine.textContent = "まもなく開店します";
           } else if (now > day.end) {
-            paceLine.textContent = "おつかれさまでした。また明日がんばりましょう";
+            paceLine.textContent = "本日は終了しました。ありがとうございました";
           } else if (forecast !== null && forecast >= TARGET) {
-            paceLine.textContent = "このペースで完売いけます。その調子！";
+            paceLine.textContent = "順調に売れています";
             paceLine.classList.add("good");
           } else if (forecast !== null && forecast >= 250) {
-            paceLine.textContent = "あと少し。声かけ強めでいきましょう";
+            paceLine.textContent = "本日16:30まで。売り切れ次第終了です";
             paceLine.classList.add("mid");
           } else {
-            paceLine.textContent = "ここからが勝負。呼び込み全開でいきましょう！";
+            paceLine.textContent = "本日16:30まで。売り切れ次第終了です";
             paceLine.classList.add("bad");
           }
         }
