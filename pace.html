@@ -122,6 +122,25 @@
       .pace.good { color: var(--green-dark); }
       .pace.mid { color: var(--amber); }
       .pace.bad { color: var(--red); }
+
+      /* 6. 声かけ */
+      .talk { margin-top: 18px; }
+      .talk-title { font-size: 14px; font-weight: 900; color: var(--ink-2); margin: 0 0 8px; }
+      .talk-line {
+        background: #f8f9fa; border-radius: 12px; padding: 10px 14px;
+        font-size: 18px; font-weight: 900; margin: 0 0 8px;
+      }
+      .talk-ask {
+        background: #e8f0fe; border-radius: 12px; padding: 10px 14px;
+        font-size: 18px; font-weight: 900; margin: 14px 0 8px; text-align: center;
+      }
+      .flavor {
+        display: flex; align-items: center; gap: 10px;
+        background: #f8f9fa; border-radius: 12px; padding: 8px 14px; margin: 0 0 8px;
+        font-size: 16px; font-weight: 700;
+      }
+      .flavor b { font-weight: 900; min-width: 92px; }
+      .flavor span { color: var(--ink-2); }
     </style>
   </head>
   <body>
@@ -145,6 +164,17 @@
     <button type="button" class="plus-btn" id="plusBtn" disabled>＋1 売れた！</button>
 
     <p class="pace num" id="paceLine" aria-live="polite">…</p>
+
+    <div class="talk" aria-label="声かけマニュアル">
+      <p class="talk-title">声かけ</p>
+      <p class="talk-line">焼きたて！フランクフルト、400円！</p>
+      <p class="talk-line">EVE祭限定！AIマニュアル配ってます！</p>
+      <p class="talk-line">買うと、AIの記事が3本読めます！</p>
+      <p class="talk-ask">お客さんに聞く「何のAI使ってますか？」</p>
+      <p class="flavor"><b>Claude</b><span>→ Claude味（スパイス）食べましょう！</span></p>
+      <p class="flavor"><b>ChatGPT</b><span>→ ChatGPT味（塩コショウ）食べましょう！</span></p>
+      <p class="flavor"><b>Gemini</b><span>→ Gemini味（ケチャップ）食べましょう！</span></p>
+    </div>
 
     <script>
       (function () {
